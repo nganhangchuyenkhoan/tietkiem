@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tạo Mã QR Chuyển Khoản - HD Bank</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for modal */
+        #qrModal.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <!-- Cột bên trái: Form và QR Code -->
+        <div class="flex flex-col">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Tạo mã QR thanh toán</h1>
+            <p class="text-gray-500 mb-6">Ngân hàng: <span class="font-semibold text-blue-600">HD Bank</span> - STK: <span class="font-semibold text-blue-600">8022334455</span></p>
+
+            <form id="qrForm" class="space-y-4">
+                <div>
+                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Số tiền cần chuyển (VNĐ)</label>
+                    <input type="text" inputmode="numeric" id="amount" name="amount" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition" placeholder="Nhập số tiền" required>
+                    <p id="amountInWords" class="text-sm text-gray-600 mt-2 italic h-5"></p>
+                </div>
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Nội dung chuyển khoản</label>
+                    <input type="text" id="description" name="description" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition" placeholder="Ví dụ: Thanh toán đơn hàng XYZ" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105">
+                    Tạo mã QR
+                </button>
+            </form>
+
+            <div id="qrCodeContainer" class="mt-6 text-center hidden">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">Mã QR của bạn</h2>
+                <div class="flex justify-center p-4 bg-gray-50 rounded-lg border">
+                    <img id="qrCodeImage" src="" alt="Mã QR Chuyển khoản" class="w-64 h-64">
+                </div>
+                 <p id="qrInfo" class="text-sm text-gray-600 mt-2"></p>
+                 <a id="downloadQrLink" href="#" download="Ma-QR-Thanh-Toan.png" class="mt-4 inline-block bg-indigo-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-indigo-700 transition">
+                    Tải mã QR
+                 </a>
+            </div>
+             <div id="messageBox" class="mt-4 p-3 rounded-lg text-center hidden"></div>
+        </div>
+
+        <!-- Cột bên phải: Lịch sử giao dịch -->
+        <div class="flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">Lịch sử đã tạo</h2>
+                <div class="flex items-center gap-2">
+                    <button id="deleteSelectedButton" class="bg-red-600 text-white font-semibold px-3 py-2 rounded-lg hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed transition text-sm" disabled>Xóa đã chọn</button>
+                    <button id="exportButton" class="bg-green-600 text-white font-semibold px-3 py-2 rounded-lg hover:bg-green-700 transition text-sm">Xuất Excel</button>
+                </div>
+            </div>
+            
+            <div class="bg-slate-50 border rounded-lg overflow-hidden flex-grow">
+                 <div class="overflow-y-auto h-96">
+                    <table class="min-w-full">
+                        <thead class="bg-slate-200 sticky top-0">
+                            <tr>
+                                <th class="p-3 w-10 text-center"><input type="checkbox" id="selectAllCheckbox"></th>
+                                <th class="p-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Thời gian</th>
+                                <th class="p-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Số tiền</th>
+                                <th class="p-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nội dung</th>
+                                <th class="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Trạng thái</th>
+                                <th class="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody" class="bg-white divide-y divide-gray-200">
+                           <!-- Dữ liệu lịch sử sẽ được chèn vào đây bằng JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+             <button id="deleteAllButton" class="w-full mt-4 bg-gray-700 text-white font-bold p-3 rounded-lg hover:bg-gray-800 disabled:bg-gray-400 transition">
+                Xóa toàn bộ lịch sử
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal xem lại QR Code -->
+    <div id="qrModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-lg p-6 text-center max-w-sm w-full shadow-lg">
+            <h3 class="text-xl font-bold mb-4">Mã QR Giao Dịch</h3>
+            <div class="flex justify-center p-2 bg-gray-100 border rounded">
+                <img id="modalQrImage" src="" alt="QR Code" class="w-60 h-60">
+            </div>
+            <p id="modalQrInfo" class="mt-3 text-gray-700"></p>
+            <div class="mt-5 flex gap-3">
+                 <a id="modalDownloadLink" href="#" download="Ma-QR-Giao-Dich.png" class="flex-1 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition">Tải về</a>
+                 <button id="closeModalButton" class="flex-1 bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-400 transition">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- THÔNG TIN TÀI KHOẢN CỐ ĐỊNH ---
+        const BANK_ID = '970437'; // BIN của HD Bank
+        const ACCOUNT_NO = '8022334455';
+        const ACCOUNT_NAME = 'TRAN VAN QUANG'; 
+
+        // --- LẤY CÁC THÀNH PHẦN GIAO DIỆN ---
+        const qrForm = document.getElementById('qrForm');
+        const amountInput = document.getElementById('amount');
+        const descriptionInput = document.getElementById('description');
+        const amountInWords = document.getElementById('amountInWords');
+        const qrCodeContainer = document.getElementById('qrCodeContainer');
+        const qrCodeImage = document.getElementById('qrCodeImage');
+        const downloadQrLink = document.getElementById('downloadQrLink');
+        const qrInfo = document.getElementById('qrInfo');
+        const historyTableBody = document.getElementById('historyTableBody');
+        const exportButton = document.getElementById('exportButton');
+        const messageBox = document.getElementById('messageBox');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const deleteSelectedButton = document.getElementById('deleteSelectedButton');
+        const deleteAllButton = document.getElementById('deleteAllButton');
+        const qrModal = document.getElementById('qrModal');
+        const modalQrImage = document.getElementById('modalQrImage');
+        const modalQrInfo = document.getElementById('modalQrInfo');
+        const modalDownloadLink = document.getElementById('modalDownloadLink');
+        const closeModalButton = document.getElementById('closeModalButton');
+
+        // --- KHỞI TẠO LỊCH SỬ GIAO DỊCH ---
+        let transactionHistory = [];
+        
+        // --- CÁC HÀM TẠO QR VÀ ĐỊNH DẠNG ---
+
+        /**
+         * Tạo chuỗi URL cho ảnh VietQR
+         * @param {number|string} amount - Số tiền
+         * @param {string} description - Nội dung
+         * @returns {string} - URL ảnh QR
+         */
+        function generateQrString(amount, description) {
+            const cleanAmount = String(amount).replace(/,/g, '');
+             return `https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact.png?amount=${cleanAmount}&addInfo=${encodeURIComponent(description)}&accountName=${encodeURIComponent(ACCOUNT_NAME)}`;
+        }
+
+        // (Các hàm numberToWords, handleAmountInput, showMessage, formatCurrency giữ nguyên như cũ)
+        function numberToWords(num) { const a = ['','một','hai','ba','bốn','năm','sáu','bảy','tám','chín','mười','mười một','mười hai','mười ba','mười bốn','mười lăm','mười sáu','mười bảy','mười tám','mười chín']; const b = ['', '', 'hai mươi','ba mươi','bốn mươi','năm mươi','sáu mươi','bảy mươi','tám mươi','chín mươi']; const c = ['', 'nghìn', 'triệu', 'tỷ']; function convertGroup(n) { if (n === '000') return ''; n = parseInt(n, 10); let str = ''; let tram = Math.floor(n / 100); let chuc = Math.floor((n % 100) / 10); let donvi = n % 10; if (tram > 0) { str += a[tram] + ' trăm '; if (chuc === 0 && donvi > 0) str += 'linh '; } if (chuc > 1) { str += b[chuc] + ' '; if (donvi === 1) str += 'mốt'; else if (donvi === 5) str += 'lăm'; else if (donvi > 0) str += a[donvi]; } else if (chuc === 1) { str += 'mười '; if (donvi === 5) str += 'lăm'; else if (donvi > 0) str += a[donvi]; } else if (donvi > 0) { str += a[donvi]; } return str; } num = parseInt(num, 10); if (isNaN(num) || num === 0) return ''; if (num > 999999999999999) return "Số quá lớn"; let numStr = num.toString().padStart(Math.ceil(num.toString().length/3)*3, '0'); let result = ''; let groupCount = numStr.length / 3; for (let i = 0; i < groupCount; i++) { let group = numStr.substring(i*3, i*3+3); let converted = convertGroup(group); if (converted) { result += converted + ' ' + c[groupCount - 1 - i] + ' '; } } let finalResult = result.trim().replace(/\s+/g, ' '); return finalResult.charAt(0).toUpperCase() + finalResult.slice(1); }
+        function handleAmountInput() { const selectionStart = amountInput.selectionStart; const originalValue = amountInput.value; const rawValue = originalValue.replace(/[^0-9]/g, ''); const amount = parseInt(rawValue, 10); if (!isNaN(amount) && amount > 0) { const words = numberToWords(amount); amountInWords.textContent = `(${words} Việt Nam Đồng)`; const formattedValue = amount.toLocaleString('en-US'); if (formattedValue !== originalValue) { amountInput.value = formattedValue; const newCursorPosition = selectionStart + (formattedValue.length - originalValue.length); amountInput.setSelectionRange(newCursorPosition, newCursorPosition); } } else { amountInWords.textContent = ''; amountInput.value = ''; } }
+        function showMessage(message, type = 'success') { messageBox.textContent = message; messageBox.className = `mt-4 p-3 rounded-lg text-center ${type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`; messageBox.classList.remove('hidden'); setTimeout(() => { messageBox.classList.add('hidden'); }, 3000); }
+        function formatCurrency(number) { return new Intl.NumberFormat('en-US').format(number) + ' VNĐ'; }
+
+        // --- CÁC HÀM QUẢN LÝ LỊCH SỬ ---
+
+        function loadHistory() { const savedHistory = localStorage.getItem('qrTransactionHistory'); if (savedHistory) { transactionHistory = JSON.parse(savedHistory); } renderHistory(); }
+        function saveHistory() { localStorage.setItem('qrTransactionHistory', JSON.stringify(transactionHistory)); }
+
+        function renderHistory() {
+            historyTableBody.innerHTML = '';
+            if (transactionHistory.length === 0) {
+                 historyTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-gray-500">Chưa có giao dịch nào.</td></tr>`;
+                 deleteAllButton.disabled = true;
+                 exportButton.disabled = true;
+            } else {
+                deleteAllButton.disabled = false;
+                exportButton.disabled = false;
+            }
+            
+            transactionHistory.forEach(tx => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-50 transition-colors';
+                const statusClass = tx.paid ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+                const statusText = tx.paid ? 'Đã chuyển' : 'Chưa chuyển';
+                
+                row.innerHTML = `
+                    <td class="p-3 w-10 text-center"><input type="checkbox" class="row-checkbox" data-id="${tx.id}"></td>
+                    <td class="p-3 text-sm text-gray-700">${new Date(tx.date).toLocaleString('vi-VN')}</td>
+                    <td class="p-3 text-sm font-semibold text-gray-900">${formatCurrency(tx.amount)}</td>
+                    <td class="p-3 text-sm text-gray-700 truncate" style="max-width: 150px;" title="${tx.description}">${tx.description}</td>
+                    <td class="p-3 text-center">
+                        <button data-id="${tx.id}" class="toggle-paid-btn text-xs font-semibold py-1 px-2 rounded-full ${statusClass}">${statusText}</button>
+                    </td>
+                    <td class="p-3 text-center space-x-2">
+                        <button data-id="${tx.id}" class="view-qr-btn text-blue-600 hover:text-blue-800" title="Xem/Tải QR">Xem QR</button>
+                    </td>
+                `;
+                historyTableBody.appendChild(row);
+            });
+            updateDeleteButtonState();
+        }
+
+        // --- CÁC HÀM XỬ LÝ SỰ KIỆN ---
+
+        qrForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const amount = amountInput.value.replace(/,/g, '');
+            const description = descriptionInput.value;
+            if (amount <= 0) { showMessage('Số tiền phải lớn hơn 0', 'error'); return; }
+
+            const qrString = generateQrString(amount, description);
+            qrCodeImage.src = qrString;
+            downloadQrLink.href = qrString;
+            downloadQrLink.download = `QR-${amount}-${description.slice(0,10)}.png`;
+            qrInfo.innerHTML = `Số tiền: <strong>${formatCurrency(amount)}</strong> <br> Nội dung: <strong>${description}</strong>`;
+            qrCodeContainer.classList.remove('hidden');
+
+            const newTransaction = { id: Date.now(), amount: parseFloat(amount), description: description, date: new Date().toISOString(), paid: false };
+            transactionHistory.unshift(newTransaction);
+            saveHistory();
+            renderHistory();
+            showMessage('Tạo mã QR thành công!', 'success');
+        });
+
+        function togglePaidStatus(event) {
+            if (!event.target.classList.contains('toggle-paid-btn')) return;
+            const txId = parseInt(event.target.dataset.id, 10);
+            const transaction = transactionHistory.find(tx => tx.id === txId);
+            if (transaction) { transaction.paid = !transaction.paid; saveHistory(); renderHistory(); showMessage('Cập nhật trạng thái thành công!', 'success'); }
+        }
+
+        function viewQrCode(event) {
+            if (!event.target.classList.contains('view-qr-btn')) return;
+            const txId = parseInt(event.target.dataset.id, 10);
+            const tx = transactionHistory.find(t => t.id === txId);
+            if(tx) {
+                const qrString = generateQrString(tx.amount, tx.description);
+                modalQrImage.src = qrString;
+                modalQrInfo.innerHTML = `Số tiền: <strong>${formatCurrency(tx.amount)}</strong><br>Nội dung: <strong>${tx.description}</strong>`;
+                modalDownloadLink.href = qrString;
+                modalDownloadLink.download = `QR-${tx.amount}-${tx.description.slice(0,10)}.png`;
+                qrModal.classList.remove('hidden');
+            }
+        }
+        
+        closeModalButton.addEventListener('click', () => qrModal.classList.add('hidden'));
+
+        function updateDeleteButtonState() {
+            const selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
+            deleteSelectedButton.disabled = selectedCount === 0;
+            selectAllCheckbox.checked = selectedCount > 0 && selectedCount === transactionHistory.length;
+        }
+
+        selectAllCheckbox.addEventListener('change', function() {
+            document.querySelectorAll('.row-checkbox').forEach(checkbox => checkbox.checked = this.checked);
+            updateDeleteButtonState();
+        });
+
+        historyTableBody.addEventListener('change', function(event) {
+            if(event.target.classList.contains('row-checkbox')) {
+                updateDeleteButtonState();
+            }
+        });
+
+        deleteSelectedButton.addEventListener('click', function() {
+            const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => parseInt(cb.dataset.id, 10));
+            if (selectedIds.length > 0 && confirm('Bạn có chắc chắn muốn xóa ${selectedIds.length} mục đã chọn?')) {
+                transactionHistory = transactionHistory.filter(tx => !selectedIds.includes(tx.id));
+                saveHistory();
+                renderHistory();
+                showMessage('Đã xóa các mục đã chọn.', 'success');
+            }
+        });
+
+        deleteAllButton.addEventListener('click', function() {
+            if (confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ lịch sử giao dịch không? Hành động này không thể hoàn tác.')) {
+                transactionHistory = [];
+                saveHistory();
+                renderHistory();
+                showMessage('Đã xóa toàn bộ lịch sử.', 'success');
+            }
+        });
+
+        exportButton.addEventListener('click', function() {
+            if (transactionHistory.length === 0) { showMessage('Không có dữ liệu để xuất.', 'error'); return; }
+            let csvContent = 'data:text/csv;charset=utf-8,';
+            csvContent += 'Thoi gian,So tien,Noi dung,Trang thai\n';
+            transactionHistory.forEach(tx => {
+                const row = [`"${new Date(tx.date).toLocaleString('vi-VN')}"`, tx.amount, `"${tx.description.replace(/"/g, '""')}"`, tx.paid ? 'Da chuyen' : 'Chua chuyen'].join(',');
+                csvContent += row + '\n';
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            const timestamp = new Date().toISOString().slice(0, 10);
+            link.setAttribute('download', `lich_su_giao_dich_MB_${timestamp}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showMessage('Đã xuất file thành công!', 'success');
+        });
+
+        // --- GẮN SỰ KIỆN VÀ KHỞI CHẠY ---
+        historyTableBody.addEventListener('click', (e) => {
+            togglePaidStatus(e);
+            viewQrCode(e);
+        });
+        amountInput.addEventListener('input', handleAmountInput);
+        document.addEventListener('DOMContentLoaded', loadHistory);
+    </script>
+</body>
+</html>
